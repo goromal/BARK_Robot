@@ -1,5 +1,5 @@
-#ifndef PIN_CONFIG_H
-#define	PIN_CONFIG_H
+#ifndef PIN_CONFIG_SAT_H
+#define	PIN_CONFIG_SAT_H
 
 #include <xc.h>
 #pragma config FNOSC = FRC  // 8e6 hz Timer -> fcy = 4e6 hz
@@ -32,4 +32,5 @@ void initialize() // include all above functions
     adc_init();
 }
 
-#endif	/* PIN_CONFIG_H */
+#endif	/* PIN_CONFIG_SAT_H */
+
