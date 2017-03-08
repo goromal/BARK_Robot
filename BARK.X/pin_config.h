@@ -11,6 +11,7 @@
  */
 #define TRIGGER_NOTICE          _RB14
 #define STEPPER_DIR_LEFT        _RB9
+//#define STEPPER_DIR_LEFT _RB14
 #define STEPPER_DIR_RIGHT       _RB8
 #define SOLENOID_TRIGGER        _RB7
 
@@ -36,21 +37,15 @@ void pin_init()
     _TRISB9 = 0;
     _TRISB8 = 0;
     _TRISB7 = 0;
-    
-    // Configure initial values
-    TRIGGER_NOTICE = 0;
-    //...
-    SOLENOID_TRIGGER = 0;
-    // STEPPER DIR CONFIGS: ***********************
 }
+
+// 1500 for 1 kHz, increase to slow down
+#define SHOOTER_SERVO_PWM_RATE 1500
+#define STEPPER_MOTOR_PWM_RATE 1500
+#define SHOOTER_DCMOT_PWM_RATE 1500
 
 void pwm_init()
 {
-    // 1500 for 1 kHz, increase to slow down
-    int SHOOTER_SERVO_PWM_RATE = 1500;      
-    int STEPPER_MOTOR_PWM_RATE = 1500;
-    int SHOOTER_DCMOT_PWM_RATE = 1500;
-    
     // Using OC2, Pin 4 (RB0) for Shooter Servo PWM
     OC2CON1 = 0b0000;           // Clear OC1 configuration bits
     OC2CON2 = 0b0000;           // Clear OC2 configuration bits 
@@ -58,8 +53,9 @@ void pwm_init()
     OC2CON1bits.OCM = 0b110;    // Edge-aligned PWM mode
     OC2CON2bits.SYNCSEL = 0b11111;  // OC1 used for syncing
     
-    OC2RS = 2*SHOOTER_SERVO_PWM_RATE;              
-    OC2R = SHOOTER_SERVO_PWM_RATE;                // 50% Duty cycle
+    OC2RS = 2*SHOOTER_SERVO_PWM_RATE;    
+    OC2R = 0;
+    //OC2R = SHOOTER_SERVO_PWM_RATE;                // 50% Duty cycle // --------------
     
     // Using OC1, Pin 14 (RA6) for Stepper Motor PWM
     OC1CON1 = 0b0000;           // Clear OC1 configuration bits
@@ -68,8 +64,9 @@ void pwm_init()
     OC1CON1bits.OCM = 0b110;    // Edge-aligned PWM mode
     OC1CON2bits.SYNCSEL = 0b11111;  // OC1 used for syncing
     
-    OC1RS = 2*STEPPER_MOTOR_PWM_RATE;              
-    OC1R = STEPPER_MOTOR_PWM_RATE;                // 50% Duty cycle
+    OC1RS = 2*STEPPER_MOTOR_PWM_RATE; 
+    OC1R = 0;
+    //OC1R = STEPPER_MOTOR_PWM_RATE;                // 50% Duty cycle // --------------
     
     // Using OC3, Pin 5 (RB1) for Shooter DC Motor PWM
     OC3CON1 = 0b0000;           // Clear OC1 configuration bits
@@ -78,8 +75,19 @@ void pwm_init()
     OC3CON1bits.OCM = 0b110;    // Edge-aligned PWM mode
     OC3CON2bits.SYNCSEL = 0b11111;  // OC1 used for syncing
     
-    OC3RS = 2*SHOOTER_DCMOT_PWM_RATE;              
-    OC3R = SHOOTER_DCMOT_PWM_RATE;                // 50% Duty cycle
+    OC3RS = 2*SHOOTER_DCMOT_PWM_RATE;    
+    OC3R = 0;
+    //OC3R = SHOOTER_DCMOT_PWM_RATE;                // 50% Duty cycle // --------------
+}
+
+void timer_config()
+{
+    // TIMER 1
+    T1CONbits.TON = 0; // begins off
+    T1CONbits.TCS = 0; // internal clock source
+    //T1CONbits.TCKPS = 10; // 1:64 Pre-scaling
+    T1CONbits.TCKPS = 11; // 1:256 Pre-scaling
+    TMR1 = 0;
 }
 
 void adc_init()
@@ -91,6 +99,7 @@ void initialize() // include all above functions
 {
     pin_init();
     pwm_init();
+    timer_config();
     adc_init();
 }
 
