@@ -2,6 +2,7 @@
 #define	PIN_CONFIG_H
 
 #include <xc.h>
+//#pragma config ICS = PGx3 // DEBUG
 #pragma config FNOSC = FRC  // 8e6 hz Timer -> fcy = 4e6 hz
 /*
  * - Initialize pins
@@ -9,11 +10,10 @@
  * - Initialize adc
  * ...
  */
-#define TRIGGER_NOTICE          _RB14
-#define STEPPER_DIR_LEFT        _RB9
-//#define STEPPER_DIR_LEFT _RB14
-#define STEPPER_DIR_RIGHT       _RB8
-#define SOLENOID_TRIGGER        _RB7
+#define TRIGGER_NOTICE          _LATB14
+#define STEPPER_DIR_LEFT        _LATB9
+#define STEPPER_DIR_RIGHT       _LATB8
+#define SOLENOID_TRIGGER        _LATB7
 
 void pin_init()
 {
@@ -39,9 +39,9 @@ void pin_init()
     _TRISB7 = 0;
 }
 
-// 1500 for 1 kHz, increase to slow down
+// 1500 for 1 kHz, increase to slow down proportionally
 #define SHOOTER_SERVO_PWM_RATE 1500
-#define STEPPER_MOTOR_PWM_RATE 1500
+#define STEPPER_MOTOR_PWM_RATE 5000
 #define SHOOTER_DCMOT_PWM_RATE 1500
 
 void pwm_init()
@@ -55,18 +55,26 @@ void pwm_init()
     
     OC2RS = 2*SHOOTER_SERVO_PWM_RATE;    
     OC2R = 0;
-    //OC2R = SHOOTER_SERVO_PWM_RATE;                // 50% Duty cycle // --------------
     
     // Using OC1, Pin 14 (RA6) for Stepper Motor PWM
-    OC1CON1 = 0b0000;           // Clear OC1 configuration bits
-    OC1CON2 = 0b0000;           // Clear OC2 configuration bits 
-    OC1CON1bits.OCTSEL = 0b111; // Use System Clock
-    OC1CON1bits.OCM = 0b110;    // Edge-aligned PWM mode
+    // will sync with Timer 2
+    
+    T2CONbits.TON = 0;              // DISABLED at first
+    T2CONbits.TCKPS = 0b00;         // 1:1 pre-scale
+    T2CONbits.T32 = 0;              // 16-bit timer
+    T2CONbits.TCS = 0;              // Internal clock source
+    OC1CON1 = 0b0000;               // Clear OC1 configuration bits
+    OC1CON2 = 0b0000;               // Clear OC2 configuration bits 
+    OC1CON1bits.OCTSEL = 0b000;     // Use Timer2
+    OC1CON1bits.OCM = 0b110;        // Edge-aligned PWM mode
     OC1CON2bits.SYNCSEL = 0b11111;  // OC1 used for syncing
     
     OC1RS = 2*STEPPER_MOTOR_PWM_RATE; 
     OC1R = 0;
-    //OC1R = STEPPER_MOTOR_PWM_RATE;                // 50% Duty cycle // --------------
+    _OC1IP = 4;
+    _OC1IE = 0;                     // DISABLED at first
+    _OC1IF = 0;
+    
     
     // Using OC3, Pin 5 (RB1) for Shooter DC Motor PWM
     OC3CON1 = 0b0000;           // Clear OC1 configuration bits
@@ -77,7 +85,6 @@ void pwm_init()
     
     OC3RS = 2*SHOOTER_DCMOT_PWM_RATE;    
     OC3R = 0;
-    //OC3R = SHOOTER_DCMOT_PWM_RATE;                // 50% Duty cycle // --------------
 }
 
 void timer_config()
@@ -85,7 +92,6 @@ void timer_config()
     // TIMER 1
     T1CONbits.TON = 0; // begins off
     T1CONbits.TCS = 0; // internal clock source
-    //T1CONbits.TCKPS = 10; // 1:64 Pre-scaling
     T1CONbits.TCKPS = 11; // 1:256 Pre-scaling
     TMR1 = 0;
 }

@@ -29,30 +29,39 @@ void set_stepper_state(stepper_state_t state)
     switch(state)
     {
         case STILL:
+            T2CONbits.TON = 0; 
+            _OC1IE = 0;
             OC1R = 0;
-            STEPPER_DIR_LEFT = 0;
             STEPPER_DIR_RIGHT = 0;
+            STEPPER_DIR_LEFT = 0;
             break;
         case FORWARD:
+            T2CONbits.TON = 1; 
+            _OC1IE = 1;
             OC1R = STEPPER_MOTOR_PWM_RATE; // 50% duty cycle for stepper motors
-            STEPPER_DIR_LEFT = 1; // counter clockwise
-            STEPPER_DIR_RIGHT = 0; // clockwise
+            STEPPER_DIR_RIGHT = 1; // clockwise
+            STEPPER_DIR_LEFT = 0; // counter clockwise
             break;
         case LEFT:
-            //OC1R = STEPPER_MOTOR_PWM_RATE;==============================
-            OC1R = .5*STEPPER_MOTOR_PWM_RATE;
-            STEPPER_DIR_LEFT = 0;
+            T2CONbits.TON = 1; 
+            _OC1IE = 1;
+            OC1R = STEPPER_MOTOR_PWM_RATE;
             STEPPER_DIR_RIGHT = 0;
+            STEPPER_DIR_LEFT = 0;
             break;
         case RIGHT:
+            T2CONbits.TON = 1; 
+            _OC1IE = 1;
             OC1R = STEPPER_MOTOR_PWM_RATE;
-            STEPPER_DIR_LEFT = 1;
             STEPPER_DIR_RIGHT = 1;
+            STEPPER_DIR_LEFT = 1;
             break;
         case BACK:
+            T2CONbits.TON = 1; 
+            _OC1IE = 1;
             OC1R = STEPPER_MOTOR_PWM_RATE;
-            STEPPER_DIR_LEFT = 0;
-            STEPPER_DIR_RIGHT = 1;
+            STEPPER_DIR_RIGHT = 0;
+            STEPPER_DIR_LEFT = 1;
             break;
     }
 }
@@ -149,8 +158,8 @@ void _handle_ccw_turn() // same as _handle_cw_turn(), but counterclockwise
     }
 }
 
-#define FORWARD_CYCLES 1000
-#define TURN_CYCLES 900
+#define FORWARD_CYCLES 600
+#define TURN_CYCLES 150
 void __attribute__((interrupt, no_auto_psv)) _OC1Interrupt(void)
 {
     static int num_cycles = 0;
