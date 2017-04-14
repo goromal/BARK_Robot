@@ -1,18 +1,18 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
 <project>
-  <executable name="dist/default/production/BARK.X.production.elf">
+  <executable name="dist/default/production/Servo_Tests.X.production.elf">
     <memory name="data">
       <units>bytes</units>
       <length>2048</length>
-      <used>306</used>
-      <free>1742</free>
+      <used>2</used>
+      <free>2046</free>
     </memory>
     <memory name="program">
       <units>bytes</units>
       <length>16128</length>
-      <used>4767</used>
-      <free>11361</free>
+      <used>606</used>
+      <free>15522</free>
     </memory>
   </executable>
 </project>

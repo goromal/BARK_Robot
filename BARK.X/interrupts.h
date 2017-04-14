@@ -1,218 +1,238 @@
 #ifndef INTERRUPTS_H
 #define	INTERRUPTS_H
 
-#include "pin_config.h"
-/*
- * - Define all interrupt functions, effectively implementing the robot's
- *   state diagram.
- * - Define all supporting functions for the interrupt functions
- */
+#include "helper_fns.h"
 
-/*    States    */
-typedef enum {STATIONARY, C_SQUARE, CC_SQUARE} robot_state_t;
+/*************************************************************************/
+/******************** State Diagram Transition Outputs *******************/
+/*************************************************************************/
+
+typedef enum {INIT, LOC_CORN, TURN_AR, BAC_CORN, T_DROP, LET_ROLL, TO_MID_1, 
+              MID_MID, TO_MID_2, WAIT, SHOOTING} robot_state_t;
 robot_state_t robot_state;
 
-typedef enum {STILL, FORWARD, LEFT, RIGHT, BACK} stepper_state_t;
-stepper_state_t stepper_state;
-
-/*    Necessary Declarations    */
-void _reset_timer_1(int count);
-void set_stepper_state(stepper_state_t state);
-void set_robot_state(robot_state_t state);
-void _handle_cw_turn();
-void _handle_ccw_turn();
-
-/*    Hierarchical state transitions and state-pin relationships    */
-void set_stepper_state(stepper_state_t state)
-{
-    stepper_state = state;
-    switch(state)
-    {
-        case STILL:
-            T2CONbits.TON = 0; 
-            _OC1IE = 0;
-            OC1R = 0;
-            STEPPER_DIR_RIGHT = 0;
-            STEPPER_DIR_LEFT = 0;
-            break;
-        case FORWARD:
-            T2CONbits.TON = 1; 
-            _OC1IE = 1;
-            OC1R = STEPPER_MOTOR_PWM_RATE; // 50% duty cycle for stepper motors
-            STEPPER_DIR_RIGHT = 1; // clockwise
-            STEPPER_DIR_LEFT = 0; // counter clockwise
-            break;
-        case LEFT:
-            T2CONbits.TON = 1; 
-            _OC1IE = 1;
-            OC1R = STEPPER_MOTOR_PWM_RATE;
-            STEPPER_DIR_RIGHT = 0;
-            STEPPER_DIR_LEFT = 0;
-            break;
-        case RIGHT:
-            T2CONbits.TON = 1; 
-            _OC1IE = 1;
-            OC1R = STEPPER_MOTOR_PWM_RATE;
-            STEPPER_DIR_RIGHT = 1;
-            STEPPER_DIR_LEFT = 1;
-            break;
-        case BACK:
-            T2CONbits.TON = 1; 
-            _OC1IE = 1;
-            OC1R = STEPPER_MOTOR_PWM_RATE;
-            STEPPER_DIR_RIGHT = 0;
-            STEPPER_DIR_LEFT = 1;
-            break;
-    }
-}
-
-#define STATIONARYCOUNT 0xFFFF
 void set_robot_state(robot_state_t state) // called in the main() function
 {
     robot_state = state;
     switch(state)
     {
-        case STATIONARY:
+        case INIT: // Subsystem initializations
+            set_trigger_servo_state(TO_NEUTRAL);
+            set_dc_state(NOT_SPINNING);
+            set_solenoid_state(DISARMED);
             set_stepper_state(STILL);
-            _reset_timer_1(STATIONARYCOUNT);
-            TRIGGER_NOTICE = 0; //
-            SOLENOID_TRIGGER = 0; //
+            set_sensor_state(NOT_READING);
+            set_button_state(NOT_READING);
+            set_shooter_servo_state(INIT_IDLE);
+            _reset_timer_1(1);
             break;
-        case C_SQUARE:
+        case LOC_CORN: // Spinning to locate the dispenser
+            set_stepper_state(RIGHT);
+            set_sensor_state(READING);
+            break;
+        case TURN_AR: // Turn so that back faces the dispenser
+            set_stepper_state(LEFT);
+            set_sensor_state(NOT_READING);
+            break;
+        case BAC_CORN: // Back into dispenser corner
+            set_stepper_state(BACK);
+            set_button_state(READING);
+            break;
+        case T_DROP: // Drop ball collector tower
+            set_button_state(NOT_READING);
+            set_solenoid_state(ARMED);
+            break;
+        case LET_ROLL:
+            set_stepper_state(STILL);
+            _reset_timer_1(2); // to let the balls roll away before driving
+            break;
+        case TO_MID_1:
+            //OC1RS = 2*STEPPER_MOTOR_PWM_SLOW; // Drive away more slowly
             set_stepper_state(FORWARD);
             break;
-        case CC_SQUARE:
+        case MID_MID:
+            set_stepper_state(STILL);
+            _reset_timer_1(2);
+            break;
+        case TO_MID_2: // Drive the rest of the way to the middle of the arena
             set_stepper_state(FORWARD);
+            set_solenoid_state(DISARMED);
+            break;
+        case WAIT: // Wait for an active goal to be detected
+            set_stepper_state(STILL);
+            set_shooter_servo_state(TO_NEUTRAL);
+            set_sensor_state(READING);
+            break;
+        case SHOOTING: // Begin shooting and remain attentive to goal changes
+            set_trigger_servo_state(TO_LEFT);
+            set_dc_state(SPINNING); // CAUSING THE SHAKES (?))
             break;
     }
 }
 
-/*    Interrupts    */
+/************************************************************************/
+/****************************** Interrupts ******************************/
+/************************************************************************/
 
-// TIMER SUPPORTS AND INTERRUPTS
-// Only resort to using timer 2, 3, etc if timer 1 is theoretically supposed to be in use
-void _reset_timer_1(int count) // Reset timer with specific period
-{
-    TMR1 = 0;
-    PR1 = count;
-    T1CONbits.TON = 1; // Only turning off is necessary outside of this function
-}
-
+// TIMER
 void __attribute__((interrupt, no_auto_psv)) _T1Interrupt(void)
 {
     _T1IF = 0;
+    switch(robot_state)
+    {
+        case INIT:
+            if (handle_timer_1() == TRUE)
+                set_robot_state(LOC_CORN);
+            break;
+        case LET_ROLL:
+            if (handle_timer_1() == TRUE)
+                set_robot_state(TO_MID_1);
+            break;
+        case MID_MID:
+            if (handle_timer_1() == TRUE)
+                set_robot_state(TO_MID_2);
+            break;
+        case SHOOTING: // In a deflection state
+            if (handle_timer_1() == TRUE)
+                set_sensor_state(READING);
+            break;
+    }
+}
+
+// BUTTONS
+void __attribute__((interrupt, no_auto_psv)) _CNInterrupt(void)
+{
+    _CNIF = 0;
 
     switch(robot_state)
     {
-        case STATIONARY:
-            T1CONbits.TON = 0;
-            set_robot_state(C_SQUARE);
-            break;
-        default:
-            break;
-    }
-    
-}
-
-// STEPPER PWM SUPPORTS AND INTERRUPT
-void _handle_cw_turn() // Handles (choreographed) turn transitions during a clockwise turn
-{
-    // A leg consists of a forward movement and right turn
-    static int legs_left = 4; // Assumes creation of full square
-    switch(stepper_state)
-    {
-        case FORWARD: // decrement legs_left and begin to turn
-            set_stepper_state(RIGHT);
-            legs_left--;
-            break;
-        case RIGHT:
-            if (legs_left == 0)
-            {
-                set_robot_state(CC_SQUARE);
-                legs_left = 4;
-            }
-            else
-                set_stepper_state(FORWARD);
+        case BAC_CORN:
+            if (BUTTON_1 == 1 && BUTTON_2 == 1)
+                set_robot_state(T_DROP);
             break;
     }
 }
 
-void _handle_ccw_turn() // same as _handle_cw_turn(), but counterclockwise
-{
-    static int legs_left = 4; // Assumes full square
-    switch(stepper_state)
-    {
-        case FORWARD: // decrement legs_left and begin to turn
-            set_stepper_state(LEFT);
-            legs_left--;
-            break;
-        case LEFT:
-            if (legs_left == 0)
-            {
-                set_robot_state(STATIONARY);
-                legs_left = 4;
-            }
-            else
-                set_stepper_state(FORWARD);
-            break;
-    }
-}
-
-#define FORWARD_CYCLES 600
-#define TURN_CYCLES 150
+// STEPPERS
 void __attribute__((interrupt, no_auto_psv)) _OC1Interrupt(void)
 {
-    static int num_cycles = 0;
     _OC1IF = 0;
-    num_cycles++;
-    
     switch(robot_state)
     {
-        case C_SQUARE:
-            switch(stepper_state)
-            {
-                case FORWARD:
-                    if (num_cycles >= FORWARD_CYCLES)
-                    {
-                        _handle_cw_turn();
-                        num_cycles = 0;
-                    }
-                    break;
-                case RIGHT:
-                    if (num_cycles >= TURN_CYCLES)
-                    {
-                        _handle_cw_turn();
-                        num_cycles = 0;
-                    }
-                    break;
-                default:
-                    break; // ERROR
-            }
+        case TURN_AR:
+            num_stepper_cycles++;
+            if (num_stepper_cycles >= TURN_180_CYCLES)
+                set_robot_state(BAC_CORN);
             break;
-        case CC_SQUARE:
-            switch(stepper_state)
-            {
-                case FORWARD:
-                    if (num_cycles >= FORWARD_CYCLES)
-                    {
-                        _handle_ccw_turn();
-                        num_cycles = 0;
-                    }
-                    break;
-                case LEFT:
-                    if (num_cycles >= TURN_CYCLES)
-                    {
-                        _handle_ccw_turn();
-                        num_cycles = 0;
-                    }
-                    break;
-                default:
-                    break; // ERROR
-            }
+        case T_DROP:
+            num_stepper_cycles++;
+            if (num_stepper_cycles >= B_CYCLES)
+                set_robot_state(LET_ROLL);
             break;
-        default: 
-            break; // ERROR
+        case TO_MID_1:
+            num_stepper_cycles++;
+            if (num_stepper_cycles >= F_CYCLES_1)
+                set_robot_state(MID_MID);
+            break;
+        case TO_MID_2:
+            num_stepper_cycles++;
+            if (num_stepper_cycles >= F_CYCLES_2)
+                set_robot_state(WAIT);
+            break;
     }
+}
+
+// TRIGGER SERVO
+void __attribute__((interrupt, no_auto_psv)) _OC2Interrupt(void)
+{
+    _OC2IF = 0;
+    switch(trigger_servo_state)
+    {
+        case TO_NEUTRAL:
+            if (OC2R == TRIGGER_SERVO_NEUTRAL)
+                set_trigger_servo_state(INIT_IDLE);
+            else
+                check_trigger_position(TRIGGER_SERVO_NEUTRAL);
+            break;
+        case TO_LEFT:
+            if (OC2R == TRIGGER_SERVO_LEFT)
+                set_trigger_servo_state(TO_RIGHT);
+            else
+                check_trigger_position(TRIGGER_SERVO_LEFT);
+            break;
+        case TO_RIGHT:
+            if (OC2R == TRIGGER_SERVO_RIGHT)
+                set_trigger_servo_state(TO_LEFT);
+            else
+                check_trigger_position(TRIGGER_SERVO_RIGHT);
+            break;
+    }
+}
+
+// IR SENSORS
+void __attribute__((interrupt, no_auto_psv)) _ADC1Interrupt(void)
+{   
+    static int avg_ir_1 = 0;
+    static int avg_ir_2 = 0;
+    static int avg_ir_3 = 0;
+    static int avg_qrd = 0;
+    
+    switch (robot_state)
+    {
+        case LOC_CORN:
+            avg_ir_1 = _avg_ir_1(IR_1_BUF, FALSE);
+            
+            if (avg_ir_1 > IR_THRESHOLD)
+                set_robot_state(TURN_AR);
+            break;
+        case WAIT: // For initial orientation to goal 
+            avg_ir_1 = _avg_ir_1(IR_1_BUF, FALSE);
+            avg_ir_2 = _avg_ir_2(IR_2_BUF, FALSE);
+            avg_ir_3 = _avg_ir_3(IR_3_BUF, FALSE);
+            
+            if (avg_ir_1 > IR_THRESHOLD)
+            {
+                if (shooter_servo_state != TO_NEUTRAL)
+                    set_shooter_servo_state(TO_NEUTRAL);
+                set_robot_state(SHOOTING);
+            }
+            else if (avg_ir_2 > IR_THRESHOLD)
+            {
+                if (shooter_servo_state != TO_LEFT)
+                    set_shooter_servo_state(TO_LEFT);
+                set_robot_state(SHOOTING);
+            }
+            else if (avg_ir_3 > IR_THRESHOLD)
+            {
+                if (shooter_servo_state != TO_RIGHT)
+                    set_shooter_servo_state(TO_RIGHT);
+                set_robot_state(SHOOTING);
+            }
+            break;
+        case SHOOTING:
+            avg_ir_1 = _avg_ir_1(IR_1_BUF, FALSE);
+            avg_ir_2 = _avg_ir_2(IR_2_BUF, FALSE);
+            avg_ir_3 = _avg_ir_3(IR_3_BUF, FALSE);
+            
+            if (avg_ir_1 > IR_THRESHOLD && shooter_servo_state != TO_NEUTRAL)
+                set_shooter_servo_state(TO_NEUTRAL);
+            else if (avg_ir_2 > IR_THRESHOLD && shooter_servo_state != TO_LEFT)
+                set_shooter_servo_state(TO_LEFT);
+            else if (avg_ir_3 > IR_THRESHOLD && shooter_servo_state != TO_RIGHT)
+                set_shooter_servo_state(TO_RIGHT);
+            
+            // check for black ball
+            avg_qrd = _avg_qrd(QRD_BUF, FALSE);
+            
+            if (avg_qrd > QRD_THRESHOLD_L && avg_qrd < QRD_THRESHOLD_H)
+            {
+                set_sensor_state(NOT_READING);
+                set_shooter_servo_state(INIT_IDLE);
+                _reset_timer_1(2); // Deflect for 2 seconds
+            }
+            break;
+    }
+    _AD1IF = 0;
 }
 
 #endif	/* INTERRUPTS_H */

@@ -4,30 +4,17 @@
  *          Robert Monson
  *          Ben Himes
  *          Kade Roth
+ * 
+ * For Mechatronics.
  *
  * Created on February 22, 2017, 4:57 PM
  */
 
 #include "interrupts.h"
 
-void interrupt_init()
-{
-    // Timers
-    _T1IP = 4;
-    _T1IE = 1;
-    _T1IF = 0;
-    // Toggle features on and off here; eventually all will be activated
-    
-    // STEPPER PWM
-    // NEED TO FIND A BETTER WAY TO TOGGLE
-    //_OC1IE = 1; // Will trigger once every cycle, or 1.8/4 degrees
-    
-}
-
 int main(void) {
     initialize();
-    set_robot_state(STATIONARY);
-    interrupt_init();
+    set_robot_state(INIT);
     while(1);
     return 0;
 }
