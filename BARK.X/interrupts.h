@@ -194,18 +194,24 @@ void __attribute__((interrupt, no_auto_psv)) _ADC1Interrupt(void)
             {
                 if (shooter_servo_state != TO_NEUTRAL)
                     set_shooter_servo_state(TO_NEUTRAL);
+                _avg_ir_2(0, TRUE);
+                _avg_ir_3(0, TRUE);
                 set_robot_state(SHOOTING);
             }
             else if (avg_ir_2 > IR_THRESHOLD)
             {
                 if (shooter_servo_state != TO_LEFT)
                     set_shooter_servo_state(TO_LEFT);
+                _avg_ir_1(0, TRUE);
+                _avg_ir_3(0, TRUE);
                 set_robot_state(SHOOTING);
             }
             else if (avg_ir_3 > IR_THRESHOLD)
             {
                 if (shooter_servo_state != TO_RIGHT)
                     set_shooter_servo_state(TO_RIGHT);
+                _avg_ir_1(0, TRUE);
+                _avg_ir_2(0, TRUE);
                 set_robot_state(SHOOTING);
             }
             break;
@@ -215,11 +221,23 @@ void __attribute__((interrupt, no_auto_psv)) _ADC1Interrupt(void)
             avg_ir_3 = _avg_ir_3(IR_3_BUF, FALSE);
             
             if (avg_ir_1 > IR_THRESHOLD && shooter_servo_state != TO_NEUTRAL)
+            {
+                _avg_ir_2(0, TRUE);
+                _avg_ir_3(0, TRUE);
                 set_shooter_servo_state(TO_NEUTRAL);
-            else if (avg_ir_2 > IR_THRESHOLD && shooter_servo_state != TO_LEFT)
+            }
+            if (avg_ir_2 > IR_THRESHOLD && shooter_servo_state != TO_LEFT)
+            {
+                _avg_ir_1(0, TRUE);
+                _avg_ir_3(0, TRUE);
                 set_shooter_servo_state(TO_LEFT);
-            else if (avg_ir_3 > IR_THRESHOLD && shooter_servo_state != TO_RIGHT)
+            }
+             if (avg_ir_3 > IR_THRESHOLD && shooter_servo_state != TO_RIGHT)
+             {
+                _avg_ir_1(0, TRUE);
+                _avg_ir_2(0, TRUE);
                 set_shooter_servo_state(TO_RIGHT);
+             }
             
             // check for black ball
             avg_qrd = _avg_qrd(QRD_BUF, FALSE);

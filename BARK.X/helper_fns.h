@@ -9,8 +9,8 @@
 
 #define B_CYCLES        75
 #define F_CYCLES_1      50  // Determines how far it will drive with the solenoid armed
-#define F_CYCLES_2      750 // How far it will drive with the solenoid disarmed
-#define TURN_180_CYCLES 280 // Count for turning 180 degrees
+#define F_CYCLES_2      650//750 // How far it will drive with the solenoid disarmed
+#define TURN_180_CYCLES 310 // Count for turning 180 degrees
 #define IR_THRESHOLD    950
 #define QRD_THRESHOLD_L 2050 // QRD low threshold
 #define QRD_THRESHOLD_H 2175 // QRD high threshold
