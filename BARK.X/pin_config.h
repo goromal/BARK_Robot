@@ -3,6 +3,7 @@
 
 #include <xc.h>
 #pragma config ICS = PGx3 // DEBUG
+#pragma config OSCIOFNC = OFF
 #pragma config FNOSC = FRC  // 8e6 hz Timer -> fcy = 4e6 hz
 #define FCY                     4000000UL
 #include <libpic30.h>       // For __delay functions

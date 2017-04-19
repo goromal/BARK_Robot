@@ -8,12 +8,11 @@
 /***********************************************************************/
 
 #define B_CYCLES        75
-#define F_CYCLES_1      50  // Determines how far it will drive with the solenoid armed
-#define F_CYCLES_2      650//750 // How far it will drive with the solenoid disarmed
-#define TURN_180_CYCLES 310 // Count for turning 180 degrees
+#define F_CYCLES_1      100  // Determines how far it will drive with the solenoid armed
+#define F_CYCLES_2      600  // How far it will drive with the solenoid disarmed
+#define TURN_180_CYCLES 310  // Count for turning 180 degrees
 #define IR_THRESHOLD    950
-#define QRD_THRESHOLD_L 2050 // QRD low threshold
-#define QRD_THRESHOLD_H 2175 // QRD high threshold
+#define QRD_THRESHOLD   3500 //2200//2050 // QRD low threshold
 
 /************************************************************************/
 /********************* Helper Function Declarations *********************/
@@ -38,7 +37,7 @@ typedef enum {READING, NOT_READING} sensor_state_t;
 sensor_state_t sensor_state;
 sensor_state_t button_state;
 
-void _reset_timer_1(int count); // ???
+void _reset_timer_1(float count);
 my_bool handle_timer_1();
 void migrate_shooter_servo(int oc_count);
 void check_trigger_position(int ocr_val);
@@ -232,7 +231,7 @@ void migrate_shooter_servo(int oc_count) // perhaps while loop will interrupt ot
     }
 }
 
-void _reset_timer_1(int seconds) // Reset timer with specific period
+void _reset_timer_1(float seconds) // Reset timer with specific period
 {
     // Truncates to integer
     timer_1.extra_cycles = 1.0 * T1_COUNT_MULT * seconds / MAX_TIMER_COUNT;
@@ -254,6 +253,7 @@ my_bool handle_timer_1()
     else
     {
         T1CONbits.TON = 0;
+        TMR1 = 0;
         _T1IE = 0;
         return TRUE;
     }
@@ -339,13 +339,13 @@ int _avg_ir_3(int new_val, my_bool new_measurement)
 int _avg_qrd(int new_val, my_bool new_measurement)
 {
     static int RunSum = 0;
-    static int Buffer[16] = {0};
+    static int Buffer[4] = {0};
     static unsigned char Newest = 0;
     static unsigned char Oldest = 1;
     if (new_measurement == TRUE)
     {
         int i = 0;
-        for (i = 0; i < 16; i++)
+        for (i = 0; i < 4; i++)
             Buffer[i] = 0;
         RunSum = 0;
         Newest = 0;
@@ -353,9 +353,9 @@ int _avg_qrd(int new_val, my_bool new_measurement)
     }
     RunSum = RunSum - Buffer[Oldest] + new_val;
     Buffer[Newest] = new_val;
-    Newest = (Newest + 1) & 0x0F;
-    Oldest = (Oldest + 1) & 0x0F;
-    return (RunSum >> 4);
+    Newest = (Newest + 1) & 0x03;
+    Oldest = (Oldest + 1) & 0x03;
+    return (RunSum >> 2);
 }
 
 #endif	/* HELPER_FNS_H */

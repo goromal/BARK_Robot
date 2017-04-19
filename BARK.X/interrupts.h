@@ -8,7 +8,7 @@
 /*************************************************************************/
 
 typedef enum {INIT, LOC_CORN, TURN_AR, BAC_CORN, T_DROP, LET_ROLL, TO_MID_1, 
-              MID_MID, TO_MID_2, WAIT, SHOOTING} robot_state_t;
+              MID_MID, TO_MID_2, WAIT, SHOOTING, DIVERTED} robot_state_t;
 robot_state_t robot_state;
 
 void set_robot_state(robot_state_t state) // called in the main() function
@@ -24,7 +24,7 @@ void set_robot_state(robot_state_t state) // called in the main() function
             set_sensor_state(NOT_READING);
             set_button_state(NOT_READING);
             set_shooter_servo_state(INIT_IDLE);
-            _reset_timer_1(1);
+            _reset_timer_1(1.0);
             break;
         case LOC_CORN: // Spinning to locate the dispenser
             set_stepper_state(RIGHT);
@@ -44,19 +44,20 @@ void set_robot_state(robot_state_t state) // called in the main() function
             break;
         case LET_ROLL:
             set_stepper_state(STILL);
-            _reset_timer_1(2); // to let the balls roll away before driving
+            _reset_timer_1(2.0); // to let the balls roll away before driving
             break;
         case TO_MID_1:
             //OC1RS = 2*STEPPER_MOTOR_PWM_SLOW; // Drive away more slowly
             set_stepper_state(FORWARD);
             break;
         case MID_MID:
+            set_solenoid_state(DISARMED);
             set_stepper_state(STILL);
-            _reset_timer_1(2);
+            _reset_timer_1(2.0);
             break;
         case TO_MID_2: // Drive the rest of the way to the middle of the arena
             set_stepper_state(FORWARD);
-            set_solenoid_state(DISARMED);
+            //set_solenoid_state(DISARMED);
             break;
         case WAIT: // Wait for an active goal to be detected
             set_stepper_state(STILL);
@@ -66,6 +67,11 @@ void set_robot_state(robot_state_t state) // called in the main() function
         case SHOOTING: // Begin shooting and remain attentive to goal changes
             set_trigger_servo_state(TO_LEFT);
             set_dc_state(SPINNING); // CAUSING THE SHAKES (?))
+            set_sensor_state(READING);
+            break;
+        case DIVERTED:
+            set_shooter_servo_state(INIT_IDLE);
+            _reset_timer_1(1.5);
             break;
     }
 }
@@ -94,7 +100,11 @@ void __attribute__((interrupt, no_auto_psv)) _T1Interrupt(void)
             break;
         case SHOOTING: // In a deflection state
             if (handle_timer_1() == TRUE)
-                set_sensor_state(READING);
+                set_robot_state(DIVERTED);
+            break;
+        case DIVERTED:
+            if (handle_timer_1() == TRUE)
+                set_robot_state(SHOOTING);
             break;
     }
 }
@@ -170,12 +180,14 @@ void __attribute__((interrupt, no_auto_psv)) _OC2Interrupt(void)
 }
 
 // IR SENSORS
+//-------------------------
+int avg_qrd = 0;
 void __attribute__((interrupt, no_auto_psv)) _ADC1Interrupt(void)
 {   
     static int avg_ir_1 = 0;
     static int avg_ir_2 = 0;
     static int avg_ir_3 = 0;
-    static int avg_qrd = 0;
+    //static int avg_qrd = 0;
     
     switch (robot_state)
     {
@@ -240,14 +252,17 @@ void __attribute__((interrupt, no_auto_psv)) _ADC1Interrupt(void)
              }
             
             // check for black ball
-            avg_qrd = _avg_qrd(QRD_BUF, FALSE);
             
-            if (avg_qrd > QRD_THRESHOLD_L && avg_qrd < QRD_THRESHOLD_H)
+            avg_qrd = QRD_BUF;
+            //avg_qrd = _avg_qrd(QRD_BUF, FALSE);
+            
+            if (avg_qrd > QRD_THRESHOLD)
             {
                 set_sensor_state(NOT_READING);
-                set_shooter_servo_state(INIT_IDLE);
-                _reset_timer_1(2); // Deflect for 2 seconds
+                _avg_qrd(0, TRUE);
+                _reset_timer_1(1.0);
             }
+            
             break;
     }
     _AD1IF = 0;
